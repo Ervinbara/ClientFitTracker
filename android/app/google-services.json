@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "642460479453",
+    "project_id": "clientfittracker",
+    "storage_bucket": "clientfittracker.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:642460479453:android:ae08b686f11334f101d034",
+        "android_client_info": {
+          "package_name": "com.example.clientfit_tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAnRDHO5_Gf2G49MBWFEI14fqOenyIieZA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
