@@ -3,9 +3,10 @@ import 'package:clientfit_tracker/models/client.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart'; // Importez les options de configuration Firebase
 import 'my_widget.dart';
-import 'add_client_dialog.dart'; // Importer le dialogue pour ajouter un client
 import 'models/client.dart'; // Importez votre modèle Client
 import 'database.dart'; // Importez la fonction addClient
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,11 +32,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  List<Client> clients = [
-    Client(name: 'John Doe', age: 30, initialWeight: 75.0, id: ''),
-    Client(name: 'Jane Smith', age: 25, initialWeight: 65.0, id: ''),
-    Client(name: 'Alice Johnson', age: 35, initialWeight: 70.0, id: ''),
-  ];
+  List<Client> clients = [];
 
   @override
   Widget build(BuildContext context) {
@@ -43,24 +40,48 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text('Liste des Clients'),
       ),
-      body: ListView.builder(
-        itemCount: clients.length,
-        itemBuilder: (BuildContext context, int index) {
-          final client = clients[index];
-          return ListTile(
-            title: Text(client.name),
-            subtitle: Text('Age: ${client.age}, Poids initial: ${client.initialWeight} kg'),
-            trailing: IconButton(
-              icon: Icon(Icons.delete),
-              onPressed: () {
-                // Appeler la méthode de suppression lorsqu'un bouton de suppression est appuyé
-                _deleteClient(context, client);
+      body: StreamBuilder(
+        stream: FirebaseFirestore.instance.collection('clients').snapshots(),
+        builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
+          if (!snapshot.hasData) {
+            return Center(
+              child: CircularProgressIndicator(),
+            );
+          } else {
+            // Clear the list to avoid duplicates
+            clients.clear();
+
+            // Build the list of clients from the snapshot data
+            snapshot.data!.docs.forEach((DocumentSnapshot document) {
+              Map<String, dynamic> data = document.data() as Map<String, dynamic>;
+              clients.add(Client(
+                name: data['name'],
+                age: data['age'],
+                initialWeight: data['initialWeight'],
+                id: document.id,
+              ));
+            });
+
+            return ListView.builder(
+              itemCount: clients.length,
+              itemBuilder: (BuildContext context, int index) {
+                final client = clients[index];
+                return ListTile(
+                  title: Text(client.name),
+                  subtitle: Text('Age: ${client.age}, Poids initial: ${client.initialWeight} kg'),
+                  trailing: IconButton(
+                    icon: Icon(Icons.delete),
+                    onPressed: () {
+                      _deleteClient(context, client);
+                    },
+                  ),
+                  onTap: () {
+                    _editClient(context, client);
+                  },
+                );
               },
-            ),
-            onTap: () {
-              _editClient(context, client);
-            },
-          );
+            );
+          }
         },
       ),
       floatingActionButton: FloatingActionButton(
@@ -104,8 +125,10 @@ class _MyHomePageState extends State<MyHomePage> {
         // Mettre à jour les détails du client dans la liste des clients
         int index = clients.indexOf(client);
         clients[index] = result;
-        updateClientInFirestore(result); // Mettre à jour le client dans Firestore
       });
+
+      updateClientInFirestore(result); // Mettre à jour le client dans Firestore
+
     }
   }
 
@@ -147,43 +170,57 @@ class AddClientDialog extends StatefulWidget {
 }
 
 class _AddClientDialogState extends State<AddClientDialog> {
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController ageController = TextEditingController();
+  final TextEditingController weightController = TextEditingController();
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Ajouter un client'),
+      title: Text('Ajouter un Nouveau Client'),
       content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        children: [
+        children: <Widget>[
           TextField(
+            controller: nameController,
             decoration: InputDecoration(labelText: 'Nom'),
-            onChanged: (value) => {/* Mettre à jour le nom du client */},
           ),
           TextField(
+            controller: ageController,
             decoration: InputDecoration(labelText: 'Age'),
-            onChanged: (value) => {/* Mettre à jour l'âge du client */},
+            keyboardType: TextInputType.number,
           ),
           TextField(
-            decoration: InputDecoration(labelText: 'Poids initial'),
-            onChanged: (value) => {/* Mettre à jour le poids initial du client */},
+            controller: weightController,
+            decoration: InputDecoration(labelText: 'Poids Initial (kg)'),
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
           ),
         ],
       ),
-      actions: [
+      actions: <Widget>[
         TextButton(
-          onPressed: () {
-            // Créer un nouvel objet Client avec les données du formulaire
-            Client newClient = Client(
-              name: 'John Doe', // Remplacez par les données du formulaire
-              age: 30, // Remplacez par les données du formulaire
-              initialWeight: 75.5, id: '1', // Remplacez par les données du formulaire
-            );
+          onPressed: () async {
+            // Récupérer les valeurs saisies dans les champs du formulaire
+            String name = nameController.text;
+            int age = int.tryParse(ageController.text) ?? 0;
+            double initialWeight = double.tryParse(weightController.text) ?? 0.0;
 
-            // Ajouter le nouveau client à Firestore
-            addClientToFirestore(newClient);
+            // Vérifier si les champs de texte ne sont pas vides
+            if (name.isNotEmpty && age != 0 && initialWeight != 0.0) {
+              // Ajouter un nouveau client avec les valeurs récupérées
+              await FirebaseFirestore.instance.collection('clients').doc().set({
+                'id' : FirebaseFirestore.instance.collection('clients').doc(),
+                'name': name,
+                'age': age,
+                'initialWeight': initialWeight,
+              });
 
-            // Fermer le dialogue
-            Navigator.of(context).pop();
+              Navigator.of(context).pop(); // Fermer le dialogue
+            } else {
+              // Afficher un message d'erreur ou empêcher l'ajout du client
+              // Vous pouvez ajouter un SnackBar ou une boîte de dialogue pour informer l'utilisateur
+              // que tous les champs doivent être remplis.
+            }
           },
           child: Text('Ajouter'),
         ),
@@ -191,6 +228,7 @@ class _AddClientDialogState extends State<AddClientDialog> {
     );
   }
 }
+
 
 class EditClientDialog extends StatefulWidget {
   final Client client;
@@ -249,9 +287,10 @@ class _EditClientDialogState extends State<EditClientDialog> {
           onPressed: () {
             // Modifier le client et fermer la boîte de dialogue
             Client updatedClient = Client(
+              id: widget.client.id, // Passer l'ID du client existant
               name: nameController.text,
               age: int.tryParse(ageController.text) ?? 0,
-              initialWeight: double.tryParse(weightController.text) ?? 0.0, id: '',
+              initialWeight: double.tryParse(weightController.text) ?? 0.0,
             );
             Navigator.of(context).pop(updatedClient);
           },

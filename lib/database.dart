@@ -7,9 +7,19 @@ void addClientToFirestore(Client client) {
   FirebaseFirestore.instance.collection('clients').add(client.toMap());
 }
 
-void updateClientInFirestore(Client client) {
-  FirebaseFirestore.instance.collection('clients').doc(client.id).update(client.toMap());
+Future<void> updateClientInFirestore(Client client) async {
+  try {
+    await FirebaseFirestore.instance.collection('clients').doc(client.id).update({
+      'name': client.name,
+      'age': client.age,
+      'initialWeight': client.initialWeight,
+    });
+    print('Client updated successfully');
+  } catch (e) {
+    print('Error updating client: $e');
+  }
 }
+
 
 void deleteClientFromFirestore(Client client) {
   FirebaseFirestore.instance.collection('clients').doc(client.id).delete();
