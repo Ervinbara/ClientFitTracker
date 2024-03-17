@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:clientfit_tracker/models/client.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart'; // Importez les options de configuration Firebase
+import 'login_page.dart';
 import 'my_widget.dart';
 import 'models/client.dart'; // Importez votre modèle Client
 import 'database.dart'; // Importez la fonction addClient
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,11 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Mon Application',
+      initialRoute: '/login',
+      routes: {
+        '/login': (context) => LoginPage(),
+        '/home': (context) => MyHomePage(), // Ajout de la route pour la page d'accueil
+      },
       home: MyHomePage(),
     );
   }
@@ -39,6 +45,12 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Liste des Clients'),
+        actions: <Widget>[
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: _signOut, // Appel de la fonction de déconnexion
+          ),
+        ],
       ),
       body: StreamBuilder(
         stream: FirebaseFirestore.instance.collection('clients').snapshots(),
@@ -94,6 +106,15 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  void _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut(); // Déconnexion de l'utilisateur de Firebase
+      Navigator.pushReplacementNamed(context, '/login'); // Redirection vers la page de login
+    } catch (e) {
+      print('Erreur lors de la déconnexion : $e');
+    }
+  }
+
   void _addClient(BuildContext context) async {
     final result = await showDialog(
       context: context,
@@ -128,7 +149,6 @@ class _MyHomePageState extends State<MyHomePage> {
       });
 
       updateClientInFirestore(result); // Mettre à jour le client dans Firestore
-
     }
   }
 
