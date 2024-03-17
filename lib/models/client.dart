@@ -7,7 +7,7 @@ class Client {
   final double initialWeight;
 
   Client({
-    required this.id, // Ajoutez cette ligne pour initialiser l'identifiant
+    this.id = '', // Ajoutez cette ligne pour initialiser l'identifiant
     required this.name,
     required this.age,
     required this.initialWeight,

@@ -3,9 +3,7 @@ import 'package:clientfit_tracker/models/client.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart'; // Importez les options de configuration Firebase
 import 'login_page.dart';
-import 'my_widget.dart';
 import 'models/client.dart'; // Importez votre modèle Client
-import 'database.dart'; // Importez la fonction addClient
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -53,31 +51,18 @@ class _MyHomePageState extends State<MyHomePage> {
         ],
       ),
       body: StreamBuilder(
-        stream: FirebaseFirestore.instance.collection('clients').snapshots(),
-        builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
+        stream: getClientsByUser(), // Utiliser la fonction pour récupérer les clients de l'utilisateur connecté
+        builder: (BuildContext context, AsyncSnapshot<List<Client>> snapshot) {
           if (!snapshot.hasData) {
             return Center(
               child: CircularProgressIndicator(),
             );
           } else {
-            // Clear the list to avoid duplicates
-            clients.clear();
-
-            // Build the list of clients from the snapshot data
-            snapshot.data!.docs.forEach((DocumentSnapshot document) {
-              Map<String, dynamic> data = document.data() as Map<String, dynamic>;
-              clients.add(Client(
-                name: data['name'],
-                age: data['age'],
-                initialWeight: data['initialWeight'],
-                id: document.id,
-              ));
-            });
-
+            // Afficher la liste des clients associés à l'utilisateur connecté
             return ListView.builder(
-              itemCount: clients.length,
+              itemCount: snapshot.data!.length,
               itemBuilder: (BuildContext context, int index) {
-                final client = clients[index];
+                final client = snapshot.data![index];
                 return ListTile(
                   title: Text(client.name),
                   subtitle: Text('Age: ${client.age}, Poids initial: ${client.initialWeight} kg'),
@@ -116,19 +101,28 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _addClient(BuildContext context) async {
-    final result = await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AddClientDialog(); // Créer et afficher une boîte de dialogue pour ajouter un nouveau client
-      },
-    );
+    // Récupérer l'utilisateur actuellement connecté
+    User? user = FirebaseAuth.instance.currentUser;
 
-    if (result != null) {
-      // Si result est différent de null, cela signifie qu'un nouveau client a été ajouté
-      setState(() {
-        clients.add(result); // Ajouter le nouveau client à la liste des clients
-        addClientToFirestore(result); // Ajouter le nouveau client à Firestore
-      });
+    if (user != null) {
+      final result = await showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AddClientDialog(); // Créer et afficher une boîte de dialogue pour ajouter un nouveau client
+        },
+      );
+
+      if (result != null) {
+        // Si result est différent de null, cela signifie qu'un nouveau client a été ajouté
+        setState(() {
+          clients.add(result); // Ajouter le nouveau client à la liste des clients
+          addClientToFirestore(result, user.uid); // Ajouter le nouveau client à Firestore
+        });
+      }
+    } else {
+      // L'utilisateur n'est pas connecté, gérer cette situation en conséquence
+      // Par exemple, afficher un message d'erreur ou rediriger vers la page de connexion
+      Navigator.pushReplacementNamed(context, '/login');
     }
   }
 
@@ -228,14 +222,13 @@ class _AddClientDialogState extends State<AddClientDialog> {
             // Vérifier si les champs de texte ne sont pas vides
             if (name.isNotEmpty && age != 0 && initialWeight != 0.0) {
               // Ajouter un nouveau client avec les valeurs récupérées
-              await FirebaseFirestore.instance.collection('clients').doc().set({
-                'id' : FirebaseFirestore.instance.collection('clients').doc(),
-                'name': name,
-                'age': age,
-                'initialWeight': initialWeight,
-              });
+              Client newClient = Client(
+                name: name,
+                age: age,
+                initialWeight: initialWeight,
+              );
 
-              Navigator.of(context).pop(); // Fermer le dialogue
+              Navigator.of(context).pop(newClient); // Fermer le dialogue et renvoyer le nouveau client
             } else {
               // Afficher un message d'erreur ou empêcher l'ajout du client
               // Vous pouvez ajouter un SnackBar ou une boîte de dialogue pour informer l'utilisateur
@@ -247,8 +240,16 @@ class _AddClientDialogState extends State<AddClientDialog> {
       ],
     );
   }
-}
 
+  @override
+  void dispose() {
+    // Libérer les ressources des contrôleurs de texte
+    nameController.dispose();
+    ageController.dispose();
+    weightController.dispose();
+    super.dispose();
+  }
+}
 
 class EditClientDialog extends StatefulWidget {
   final Client client;
@@ -328,4 +329,50 @@ class _EditClientDialogState extends State<EditClientDialog> {
     weightController.dispose();
     super.dispose();
   }
+}
+
+// Fonction pour récupérer les clients associés à l'utilisateur connecté
+Stream<List<Client>> getClientsByUser() {
+  User? user = FirebaseAuth.instance.currentUser;
+  if (user != null) {
+    return FirebaseFirestore.instance
+        .collection('clients')
+        .where('userId', isEqualTo: user.uid)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+        .map((document) => Client(
+      id: document.id,
+      name: document['name'],
+      age: document['age'],
+      initialWeight: document['initialWeight'],
+    ))
+        .toList());
+  } else {
+    // L'utilisateur n'est pas connecté, retourner un flux vide
+    return Stream.value([]);
+  }
+}
+
+// Fonction pour ajouter un client à Firestore avec l'ID de l'utilisateur
+void addClientToFirestore(Client client, String userId) async {
+  await FirebaseFirestore.instance.collection('clients').add({
+    'userId': userId,
+    'name': client.name,
+    'age': client.age,
+    'initialWeight': client.initialWeight,
+  });
+}
+
+// Fonction pour mettre à jour un client dans Firestore
+void updateClientInFirestore(Client client) async {
+  await FirebaseFirestore.instance.collection('clients').doc(client.id).update({
+    'name': client.name,
+    'age': client.age,
+    'initialWeight': client.initialWeight,
+  });
+}
+
+// Fonction pour supprimer un client de Firestore
+void deleteClientFromFirestore(Client client) async {
+  await FirebaseFirestore.instance.collection('clients').doc(client.id).delete();
 }
