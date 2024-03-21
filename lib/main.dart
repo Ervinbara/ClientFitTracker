@@ -38,6 +38,8 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   List<Client> clients = [];
 
+  bool clientsLoaded = false;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -46,23 +48,24 @@ class _MyHomePageState extends State<MyHomePage> {
         actions: <Widget>[
           IconButton(
             icon: Icon(Icons.logout),
-            onPressed: _signOut, // Appel de la fonction de déconnexion
+            onPressed: _signOut,
           ),
         ],
       ),
       body: StreamBuilder(
-        stream: getClientsByUser(), // Utiliser la fonction pour récupérer les clients de l'utilisateur connecté
+        stream: getClientsByUser(),
         builder: (BuildContext context, AsyncSnapshot<List<Client>> snapshot) {
           if (!snapshot.hasData) {
             return Center(
               child: CircularProgressIndicator(),
             );
           } else {
-            // Afficher la liste des clients associés à l'utilisateur connecté
+            clientsLoaded = true; // Marquer la liste des clients comme chargée
+            clients = snapshot.data!; // Mettre à jour la liste des clients
             return ListView.builder(
-              itemCount: snapshot.data!.length,
+              itemCount: clients.length,
               itemBuilder: (BuildContext context, int index) {
-                final client = snapshot.data![index];
+                final client = clients[index];
                 return ListTile(
                   title: Text(client.name),
                   subtitle: Text('Age: ${client.age}, Poids initial: ${client.initialWeight} kg'),
@@ -73,7 +76,14 @@ class _MyHomePageState extends State<MyHomePage> {
                     },
                   ),
                   onTap: () {
-                    _editClient(context, client);
+                    if (clientsLoaded) { // Vérifier si la liste des clients est chargée
+                      _editClient(context, client);
+                    } else {
+                      // La liste des clients n'est pas encore chargée, afficher un message d'attente
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text('Veuillez patienter pendant le chargement de la liste des clients.'),
+                      ));
+                    }
                   },
                 );
               },
@@ -118,6 +128,7 @@ class _MyHomePageState extends State<MyHomePage> {
           clients.add(result); // Ajouter le nouveau client à la liste des clients
           addClientToFirestore(result, user.uid); // Ajouter le nouveau client à Firestore
         });
+        print('Nouveau client ajouté à Firestore: $result');
       }
     } else {
       // L'utilisateur n'est pas connecté, gérer cette situation en conséquence
@@ -127,6 +138,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _editClient(BuildContext context, Client client) async {
+    print('Client ID: ${client.id}');
     final result = await showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -136,15 +148,25 @@ class _MyHomePageState extends State<MyHomePage> {
 
     if (result != null) {
       // Si result est différent de null, cela signifie que le client a été modifié
-      setState(() {
-        // Mettre à jour les détails du client dans la liste des clients
-        int index = clients.indexOf(client);
-        clients[index] = result;
-      });
-
-      updateClientInFirestore(result); // Mettre à jour le client dans Firestore
+      int index = clients.indexWhere((element) => element.id == client.id);
+      print(index);
+      print('Client ID: ${client.id}');
+      print('Clients list: $clients');
+      if (index != -1) {
+        setState(() {
+          // Mettre à jour les détails du client dans la liste des clients
+          clients[index] = result;
+        });
+        updateClientInFirestore(result); // Mettre à jour le client dans Firestore
+        print('Client mis à jour dans Firestore: $result');
+      } else {
+        // Gérer le cas où le client n'est pas trouvé dans la liste
+        print('Erreur : Le client à modifier n\'a pas été trouvé dans la liste.');
+      }
     }
   }
+
+
 
   void _deleteClient(BuildContext context, Client client) {
     showDialog(
@@ -166,6 +188,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 setState(() {
                   clients.remove(client);
                   deleteClientFromFirestore(client); // Supprimer le client de Firestore
+                  print('Client supprimé de Firestore: $client');
                 });
                 Navigator.of(context).pop(); // Fermer la boîte de dialogue
               },
@@ -176,6 +199,7 @@ class _MyHomePageState extends State<MyHomePage> {
       },
     );
   }
+
 }
 
 class AddClientDialog extends StatefulWidget {
@@ -339,19 +363,24 @@ Stream<List<Client>> getClientsByUser() {
         .collection('clients')
         .where('userId', isEqualTo: user.uid)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-        .map((document) => Client(
-      id: document.id,
-      name: document['name'],
-      age: document['age'],
-      initialWeight: document['initialWeight'],
-    ))
-        .toList());
+        .map((snapshot) {
+      List<Client> clients = snapshot.docs.map((document) => Client(
+        id: document.id,
+        name: document['name'],
+        age: document['age'],
+        initialWeight: document['initialWeight'],
+      )).toList();
+      clients.forEach((client) {
+        print('ID: ${client.id}, Name: ${client.name}, Age: ${client.age}, Initial Weight: ${client.initialWeight}');
+      });
+      return clients;
+    });
   } else {
     // L'utilisateur n'est pas connecté, retourner un flux vide
     return Stream.value([]);
   }
 }
+
 
 // Fonction pour ajouter un client à Firestore avec l'ID de l'utilisateur
 void addClientToFirestore(Client client, String userId) async {
