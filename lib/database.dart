@@ -13,6 +13,7 @@ Future<void> updateClientInFirestore(Client client) async {
       'name': client.name,
       'age': client.age,
       'initialWeight': client.initialWeight,
+      'actualWeight': client.actualWeight,
     });
     print('Client updated successfully');
   } catch (e) {

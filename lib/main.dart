@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:clientfit_tracker/models/client.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'client_detail.dart';
 import 'firebase_options.dart'; // Importez les options de configuration Firebase
 import 'login_page.dart';
 import 'models/client.dart'; // Importez votre modèle Client
@@ -68,12 +69,28 @@ class _MyHomePageState extends State<MyHomePage> {
                 final client = clients[index];
                 return ListTile(
                   title: Text(client.name),
-                  subtitle: Text('Age: ${client.age}, Poids initial: ${client.initialWeight} kg'),
-                  trailing: IconButton(
-                    icon: Icon(Icons.delete),
-                    onPressed: () {
-                      _deleteClient(context, client);
-                    },
+                  subtitle: Text('Age: ${client.age}, P.I: ${client.initialWeight} kg, P.A: ${client.actualWeight} kg'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ClientDetailPage(client: client),
+                            ),
+                          );
+                        },
+                        child: Icon(Icons.visibility),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete),
+                        onPressed: () {
+                          _deleteClient(context, client);
+                        },
+                      ),
+                    ],
                   ),
                   onTap: () {
                     if (clientsLoaded) { // Vérifier si la liste des clients est chargée
@@ -250,6 +267,7 @@ class _AddClientDialogState extends State<AddClientDialog> {
                 name: name,
                 age: age,
                 initialWeight: initialWeight,
+                actualWeight: initialWeight,
               );
 
               Navigator.of(context).pop(newClient); // Fermer le dialogue et renvoyer le nouveau client
@@ -288,6 +306,7 @@ class _EditClientDialogState extends State<EditClientDialog> {
   late TextEditingController nameController;
   late TextEditingController ageController;
   late TextEditingController weightController;
+  late TextEditingController actualWeightController;
 
   @override
   void initState() {
@@ -296,6 +315,8 @@ class _EditClientDialogState extends State<EditClientDialog> {
     nameController = TextEditingController(text: widget.client.name);
     ageController = TextEditingController(text: widget.client.age.toString());
     weightController = TextEditingController(text: widget.client.initialWeight.toString());
+    actualWeightController = TextEditingController(text: widget.client.actualWeight.toString());
+
   }
 
   @override
@@ -319,6 +340,11 @@ class _EditClientDialogState extends State<EditClientDialog> {
             decoration: InputDecoration(labelText: 'Poids Initial (kg)'),
             keyboardType: TextInputType.numberWithOptions(decimal: true),
           ),
+          TextField(
+            controller: actualWeightController,
+            decoration: InputDecoration(labelText: 'Poids actuel (kg)'),
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
+          ),
         ],
       ),
       actions: <Widget>[
@@ -336,6 +362,7 @@ class _EditClientDialogState extends State<EditClientDialog> {
               name: nameController.text,
               age: int.tryParse(ageController.text) ?? 0,
               initialWeight: double.tryParse(weightController.text) ?? 0.0,
+              actualWeight: double.tryParse(actualWeightController.text) ?? 0.0,
             );
             Navigator.of(context).pop(updatedClient);
           },
@@ -351,6 +378,7 @@ class _EditClientDialogState extends State<EditClientDialog> {
     nameController.dispose();
     ageController.dispose();
     weightController.dispose();
+    actualWeightController.dispose();
     super.dispose();
   }
 }
@@ -369,10 +397,11 @@ Stream<List<Client>> getClientsByUser() {
         name: document['name'],
         age: document['age'],
         initialWeight: document['initialWeight'],
+        actualWeight: document['actualWeight'],
       )).toList();
-      clients.forEach((client) {
-        print('ID: ${client.id}, Name: ${client.name}, Age: ${client.age}, Initial Weight: ${client.initialWeight}');
-      });
+      //clients.forEach((client) {
+        //print('ID: ${client.id}, Name: ${client.name}, Age: ${client.age}, Initial Weight: ${client.initialWeight}');
+      //});
       return clients;
     });
   } else {
@@ -389,6 +418,7 @@ void addClientToFirestore(Client client, String userId) async {
     'name': client.name,
     'age': client.age,
     'initialWeight': client.initialWeight,
+    'actualWeight': client.initialWeight,
   });
 }
 
@@ -398,6 +428,7 @@ void updateClientInFirestore(Client client) async {
     'name': client.name,
     'age': client.age,
     'initialWeight': client.initialWeight,
+    'actualWeight': client.actualWeight,
   });
 }
 

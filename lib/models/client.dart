@@ -5,12 +5,14 @@ class Client {
   final String name;
   final int age;
   final double initialWeight;
+  final double actualWeight;
 
   Client({
     this.id = '', // Ajoutez cette ligne pour initialiser l'identifiant
     required this.name,
     required this.age,
     required this.initialWeight,
+    required this.actualWeight
   });
 
   Map<String, dynamic> toMap() {
@@ -19,6 +21,7 @@ class Client {
       'name': name,
       'age': age,
       'initialWeight': initialWeight,
+      'actualWeight': actualWeight,
     };
   }
 }
